@@ -1,4 +1,4 @@
 google-genai
-pandas_ta
+git+https://github.com/twopirllc/pandas-ta.git
 requests
 yfinance
