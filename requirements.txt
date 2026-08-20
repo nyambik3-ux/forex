@@ -1,5 +1,5 @@
 google-genai
 pandas
-numpy
 requests
+ta
 yfinance
