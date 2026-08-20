@@ -18,12 +18,21 @@ CHAT_ID_TELEGRAM = os.getenv("CHAT_ID_TELEGRAM")
 
 STOCK_POOL = ["BRMS.JK", "ASLI.JK", "PYFA.JK", "SGER.JK", "TRIN.JK"]
 
-# Inisialisasi Client Gemini SDK
+if not GEMINI_API_KEY:
+  print(
+      "❌ FATAL ERROR: GEMINI_API_KEY tidak ditemukan! Cek kembali GitHub"
+      " Secrets."
+  )
+  exit(1)
+
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 def kirim_telegram(pesan):
-  """Kirim pesan format rapi ke Telegram"""
+  if not TOKEN_TELEGRAM or not CHAT_ID_TELEGRAM:
+    print("⚠️ Token / Chat ID Telegram belum diatur.")
+    return
+
   try:
     url = f"https://api.telegram.org/bot{TOKEN_TELEGRAM}/sendMessage"
     payload = {
@@ -32,9 +41,10 @@ def kirim_telegram(pesan):
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
-    requests.post(url, data=payload, timeout=10)
+    res = requests.post(url, data=payload, timeout=10)
+    print(f"Status Telegram: {res.status_code}")
   except Exception as e:
-    print(f"❌ Gagal kirim Telegram: {e}")
+    print(f"❌ Error request Telegram: {e}")
 
 
 def minta_analisa_gemini(
@@ -60,12 +70,11 @@ def minta_analisa_gemini(
     - SMA20: {sma20:.1f}
     - Bollinger Upper Band: Rp{bb_upper:.1f}
     - Bollinger Lower Band: Rp{bb_lower:.1f}
-    - ADX (Kekuatan Tren): {adx:.1f} (Nilai > 25 menandakan tren kuat)
+    - ADX (Kekuatan Tren): {adx:.1f}
     - ATR (14): {atr:.1f}
     - Candle Bullish Kuat: {is_bullish}
 
-    Berikan analisa singkat 2 kalimat dengan mempertimbangkan posisi harga Open terhadap Pivot & Bollinger Bands serta kekuatan tren ADX.
-    Kembalikan respon DALAM FORMAT JSON SAJA seperti ini:
+    Berikan analisa singkat 2 kalimat. Kembalikan respon DALAM FORMAT JSON SAJA:
     {{
       "rekomendasi": "HAKA" / "ANTRE" / "SKIP",
       "alasan": "Penjelasan singkat maksimal 2 kalimat",
@@ -89,7 +98,7 @@ def minta_analisa_gemini(
 
 
 def run_gemini_screener():
-  print("=== BOT PREMARKET GEMINI (BB + ADX FIXED) STARTED ===\n")
+  print("=== BOT PREMARKET GEMINI STARTED ===\n")
 
   tickers_str = " ".join(STOCK_POOL)
   raw_data = yf.download(
@@ -99,6 +108,7 @@ def run_gemini_screener():
   pesan_rekap = (
       "🤖 <b>PREMARKET ANALYSIS (BB + ADX)</b> 🤖\n" + "━" * 32 + "\n\n"
   )
+  ada_hasil = False
 
   for ticker in STOCK_POOL:
     try:
@@ -110,33 +120,24 @@ def run_gemini_screener():
       if len(df) < 20:
         continue
 
-      # Ambil Data Harga
       open_price = float(df["Open"].iloc[-1])
       close_prev = float(df["Close"].iloc[-2])
       high_prev = float(df["High"].iloc[-2])
       low_prev = float(df["Low"].iloc[-2])
 
-      # Indikator Dasar
       df["RSI"] = ta.rsi(df["Close"], length=14)
       df["SMA20"] = ta.sma(df["Close"], length=20)
       df["ATR"] = ta.atr(df["High"], df["Low"], df["Close"], length=14)
 
-      # Indikator Bollinger Bands
       bb = ta.bbands(df["Close"], length=20, std=2)
-      bb_lower_series = bb.iloc[:, 0]
-      bb_upper_series = bb.iloc[:, 2]
-
-      # Indikator ADX
       adx_df = ta.adx(df["High"], df["Low"], df["Close"], length=14)
-      adx_series = adx_df.iloc[:, 0]
 
-      # Nilai Terbaru
       rsi = float(df["RSI"].iloc[-2])
       sma20 = float(df["SMA20"].iloc[-2])
       atr = float(df["ATR"].iloc[-2])
-      bb_upper = float(bb_upper_series.iloc[-2])
-      bb_lower = float(bb_lower_series.iloc[-2])
-      adx = float(adx_series.iloc[-2])
+      bb_lower = float(bb.iloc[-2, 0])
+      bb_upper = float(bb.iloc[-2, 2])
+      adx = float(adx_df.iloc[-2, 0])
 
       pivot = (high_prev + low_prev + close_prev) / 3
       is_bullish = close_prev >= (high_prev - (high_prev - low_prev) * 0.3)
@@ -168,20 +169,22 @@ def run_gemini_screener():
 
         pesan_rekap += (
             f"{icon} <b>[{kode_saham}]</b> -> Status: <b>{status}</b>\n"
-            f"├ 💵 Open: <b>Rp{int(open_price)}</b> | Prev Close: Rp{int(close_prev)}\n"
+            f"├ 💵 Open: <b>Rp{int(open_price)}</b> | Prev Close:"
+            f" Rp{int(close_prev)}\n"
             f"├ 📊 ADX: {adx:.1f} | BB Upper: Rp{int(bb_upper)}\n"
             f"├ 💡 <i>{alasan}</i>\n"
             f"├ 🎯 TP: Rp{tp}\n"
             f"└ 🛡️ SL: Rp{sl}\n\n"
         )
+        ada_hasil = True
 
     except Exception as e:
       print(f"Error olah data {ticker}: {e}")
       continue
 
-  # Kirim Rangkuman ke Telegram
-  kirim_telegram(pesan_rekap)
-  print("✅ Seluruh analisa berhasil dikirim ke Telegram!")
+  if ada_hasil:
+    kirim_telegram(pesan_rekap)
+    print("✅ Seluruh analisa berhasil dikirim ke Telegram!")
 
 
 if __name__ == "__main__":
