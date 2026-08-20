@@ -12,9 +12,9 @@ warnings.filterwarnings("ignore")
 # ==========================================
 # KONFIGURASI (MEMBACA DARI GITHUB SECRETS)
 # ==========================================
-GEMINI_API_KEY = os.getenv("AQ.Ab8RN6KSmukz2n4E4a62FY7uL-5z4cnc5Nll2PTpE2V3-IhWpA")
-TOKEN_TELEGRAM = os.getenv("8938108866:AAGNEcXVXClll-C8EGSQP61mwkjqKLXW6Tw")
-CHAT_ID_TELEGRAM = os.getenv("8014458366")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+TOKEN_TELEGRAM = os.getenv("TOKEN_TELEGRAM")
+CHAT_ID_TELEGRAM = os.getenv("CHAT_ID_TELEGRAM")
 
 STOCK_POOL = ["BRMS.JK", "ASLI.JK", "PYFA.JK", "SGER.JK", "TRIN.JK"]
 
