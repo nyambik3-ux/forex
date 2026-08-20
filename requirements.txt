@@ -1,4 +1,5 @@
 google-genai
-pandas-ta-quantstats
+pandas
+numpy
 requests
 yfinance
