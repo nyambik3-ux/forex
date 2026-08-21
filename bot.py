@@ -58,7 +58,6 @@ def minta_analisa_groq(ticker, open_price, close_prev, pivot, rsi, sma20, bb_upp
     Nilai rekomendasi HANYA boleh salah satu dari: "HAKA", "ANTRE", atau "SKIP".
     """
 
-    # Urutan model berdasarkan batas TPM tertinggi dari screenshot billing kamu
     candidate_models = [
         "groq/compound",
         "groq/compound-mini",
@@ -81,29 +80,9 @@ def minta_analisa_groq(ticker, open_price, close_prev, pivot, rsi, sma20, bb_upp
             res_text = response.choices[0].message.content.strip()
             return json.loads(res_text)
         except Exception as e:
-            # Jika hit limit atau error, coba model berikutnya
             continue
 
     return None
-        for active_model in valid_llms:
-            try:
-                response = client.chat.completions.create(
-                    model=active_model,
-                    messages=[
-                        {"role": "system", "content": "You are a stock analyst API. You MUST reply with a valid JSON object ONLY. No markdown, no prose."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    response_format={"type": "json_object"}
-                )
-                
-                res_text = response.choices[0].message.content.strip()
-                return json.loads(res_text)
-            except Exception as e:
-                continue
-
-    except Exception as e:
-        print(f"❌ Error Groq ({ticker}): {e}")
-        return None
 
 def run_screener():
     print("=== BOT PREMARKET GROQ STARTED ===")
@@ -151,7 +130,6 @@ def run_screener():
                 kode_saham, open_price, close_prev, pivot, rsi, sma20, bb_upper, bb_lower, adx, atr, is_bullish
             )
 
-            # Jeda 1.5 detik agar API Groq tidak kena Limit Rate
             time.sleep(1.5)
 
             if ai_result:
