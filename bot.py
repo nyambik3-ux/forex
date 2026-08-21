@@ -58,17 +58,33 @@ def minta_analisa_groq(ticker, open_price, close_prev, pivot, rsi, sma20, bb_upp
     Nilai rekomendasi HANYA boleh salah satu dari: "HAKA", "ANTRE", atau "SKIP".
     """
 
-    try:
-        all_models = [m.id for m in client.models.list().data]
-        valid_llms = [
-            m for m in all_models 
-            if any(k in m.lower() for k in ["llama", "deepseek", "qwen", "mixtral", "gemma"]) 
-            and "canopylabs" not in m.lower()
-        ]
+    # Urutan model berdasarkan batas TPM tertinggi dari screenshot billing kamu
+    candidate_models = [
+        "groq/compound",
+        "groq/compound-mini",
+        "qwen/qwen3.6-27b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b"
+    ]
 
-        if not valid_llms:
-            return None
+    for model_name in candidate_models:
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": "You are a stock analyst API. You MUST reply with a valid JSON object ONLY. No markdown, no prose."},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"}
+            )
+            
+            res_text = response.choices[0].message.content.strip()
+            return json.loads(res_text)
+        except Exception as e:
+            # Jika hit limit atau error, coba model berikutnya
+            continue
 
+    return None
         for active_model in valid_llms:
             try:
                 response = client.chat.completions.create(
