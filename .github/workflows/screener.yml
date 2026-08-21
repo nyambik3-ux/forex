@@ -1,20 +1,19 @@
-name: Saham Premarket Screener Automation
+name: Saham Premarket Screener Bot
 
 on:
   schedule:
-    # 01:30 UTC = 08:30 WIB | Berjalan Senin - Jumat (1-5)
+    # Berjalan setiap Senin-Jumat pukul 08:30 WIB (01:30 UTC)
     - cron: '30 1 * * 1-5'
-  workflow_dispatch: # Agar bisa di-run manual kapan saja
+  workflow_dispatch: # Memungkinkan jalankan manual via tombol
 
 jobs:
   run-screener:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
@@ -26,7 +25,7 @@ jobs:
 
       - name: Run Screener Bot
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           TOKEN_TELEGRAM: ${{ secrets.TOKEN_TELEGRAM }}
           CHAT_ID_TELEGRAM: ${{ secrets.CHAT_ID_TELEGRAM }}
         run: python bot.py
