@@ -2,9 +2,11 @@ name: Saham Premarket Screener Bot
 
 on:
   schedule:
-    # Berjalan setiap Senin-Jumat pukul 08:30 WIB (01:30 UTC)
+    # Running 1: Jam 08:30 WIB (Premarket)
     - cron: '30 1 * * 1-6'
-  workflow_dispatch: # Memungkinkan jalankan manual via tombol
+    # Running 2: Jam 12:15 WIB (Break Session Siang)
+    - cron: '15 6 * * 1-6'
+  workflow_dispatch: # Tombol run manual di GitHub
 
 jobs:
   run-screener:
