@@ -1,4 +1,4 @@
-google-genai
+groq
 pandas
 requests
 ta
