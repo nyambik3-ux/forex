@@ -21,8 +21,8 @@ TOKEN_TELEGRAM = os.getenv("TOKEN_TELEGRAM")
 CHAT_ID_TELEGRAM = os.getenv("CHAT_ID_TELEGRAM")
 
 STOCK_POOL = [
-    "BRMS.JK", "ASLI.JK", "PYFA.JK", "SGER.JK",
-    "TRIN.JK", "CASH.JK", "DOOH.JK"
+    "BRMS.JK", "ASLI.JK", "SGER.JK",
+    "TLKM.JK", "BMRI.JK", "BRIS.JK", "BBRI.JK", "BRIS.JK", "BBCA", "ARDO.JK"
 ]
 
 client = Groq(api_key=GROQ_API_KEY)
