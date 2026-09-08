@@ -1,12 +1,10 @@
-name: Saham Premarket Screener Bot
+name: Saham Weekly Position Screener Bot
 
 on:
   schedule:
-    # Running 1: Jam 08:30 WIB (Premarket)
-    - cron: '30 1 * * 1-6'
-    # Running 2: Jam 12:15 WIB (Break Session Siang)
-    - cron: '15 5 * * 1-6'
-  workflow_dispatch: # Tombol run manual di GitHub
+    # Running tiap hari Sabtu jam 08:00 WIB (Selesai penutupan bursa mingguan)
+    - cron: '0 1 * * 6'
+  workflow_dispatch: # Tombol manual jika ingin run kapan saja
 
 jobs:
   run-screener:
