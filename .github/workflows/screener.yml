@@ -2,9 +2,9 @@ name: Saham Weekly Position Screener Bot
 
 on:
   schedule:
-    # Running tiap hari Sabtu jam 08:00 WIB (Selesai penutupan bursa mingguan)
+    # Running tiap hari Sabtu jam 08:00 WIB (Penutupan bursa mingguan)
     - cron: '0 1 * * 6'
-  workflow_dispatch: # Tombol manual jika ingin run kapan saja
+  workflow_dispatch: # Tombol manual trigger
 
 jobs:
   run-screener:
@@ -12,11 +12,15 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          # Pakai versi terpisah untuk menghindari warning runner
+          sparse-checkout-cone-mode: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: 'pip'
 
       - name: Install Dependencies
         run: |
@@ -28,4 +32,5 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           TOKEN_TELEGRAM: ${{ secrets.TOKEN_TELEGRAM }}
           CHAT_ID_TELEGRAM: ${{ secrets.CHAT_ID_TELEGRAM }}
+          ACTIONS_NODE20_DEPRECATION_WARNING: false
         run: python bot.py
