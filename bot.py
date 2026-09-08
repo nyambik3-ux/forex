@@ -7,8 +7,7 @@ import requests
 import yfinance as yf
 
 from groq import Groq
-from ta.volatility import BollingerBands, AverageTrueRange
-from ta.trend import SMAIndicator, ADXIndicator
+from ta.trend import SMAIndicator, MACD
 from ta.momentum import RSIIndicator
 
 warnings.filterwarnings("ignore")
@@ -20,9 +19,10 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 TOKEN_TELEGRAM = os.getenv("TOKEN_TELEGRAM")
 CHAT_ID_TELEGRAM = os.getenv("CHAT_ID_TELEGRAM")
 
+# Stock Pool difokuskan ke saham Blue Chip / Core Holding
 STOCK_POOL = [
-    "BRMS.JK", "ASLI.JK", "SGER.JK",
-    "TLKM.JK", "BMRI.JK", "BRIS.JK", "BBRI.JK", "BRIS.JK", "BBCA", "ARDO.JK"
+    "BBRI.JK", "BMRI.JK", "BBCA.JK", "TLKM.JK", "ASII.JK", 
+    "BRIS.JK", "UNVR.JK", "AMRT.JK", "PGAS.JK", "ICBP.JK"
 ]
 
 client = Groq(api_key=GROQ_API_KEY)
@@ -40,30 +40,31 @@ def kirim_telegram(pesan):
     except Exception as e:
         print(f"❌ Gagal kirim Telegram: {e}")
 
-def minta_analisa_groq(ticker, open_price, close_prev, pivot, rsi, sma20, bb_upper, bb_lower, adx, atr, is_bullish):
+def minta_analisa_groq(ticker, close_price, sma50, sma200, rsi_weekly, macd_hist, trend_status):
     prompt = f"""
-    Bertindaklah sebagai Senior Scalper Saham IDX. Analisa data teknikal berikut:
-    - Saham: {ticker} | Open: Rp{open_price} | Prev Close: Rp{close_prev} | Pivot: Rp{pivot}
-    - RSI: {rsi:.1f} | SMA20: {sma20:.1f} | BB Upper: Rp{bb_upper:.1f} | BB Lower: Rp{bb_lower:.1f}
-    - ADX: {adx:.1f} | ATR: {atr:.1f} | Bullish Candle: {is_bullish}
+    Bertindaklah sebagai Senior Position Trader & Value Investor Saham IDX.
+    Analisa data teknikal mingguan (Weekly) saham berikut:
+    - Saham: {ticker} | Harga Terakhir: Rp{int(close_price)}
+    - SMA 50 Weekly: Rp{int(sma50)} | SMA 200 Weekly: Rp{int(sma200)}
+    - Weekly RSI (14): {rsi_weekly:.1f}
+    - Weekly MACD Histogram: {macd_hist:.2f}
+    - Tren Struktural: {trend_status}
 
-    Berikan analisa singkat maksimal 2 kalimat.
+    Berikan analisa perspektif investasi/swing jangka panjang (3-12 bulan) maksimal 2 kalimat.
     WAJIB KEMBALIKAN DALAM FORMAT JSON MURNI SEPERTI INI:
     {{
-      "rekomendasi": "HAKA",
-      "alasan": "Tulis alasan singkat di sini",
-      "target_tp": {int(pivot * 1.03)},
-      "batas_sl": {int(pivot * 0.97)}
+      "rekomendasi": "AKUMULASI",
+      "alasan": "Tulis alasan teknikal jangka panjang di sini",
+      "target_tp": {int(close_price * 1.15)},
+      "batas_sl": {int(close_price * 0.90)}
     }}
-    Nilai rekomendasi HANYA boleh salah satu dari: "HAKA", "ANTRE", atau "SKIP".
+    Nilai rekomendasi HANYA boleh salah satu dari: "AKUMULASI", "HOLD", atau "AVOID".
     """
 
     candidate_models = [
-        "groq/compound",
-        "groq/compound-mini",
-        "qwen/qwen3.6-27b",
-        "openai/gpt-oss-120b",
-        "openai/gpt-oss-20b"
+        "llama-3.3-70b-versatile",
+        "llama3-70b-8192",
+        "mixtral-8x7b-32768"
     ]
 
     for model_name in candidate_models:
@@ -85,73 +86,79 @@ def minta_analisa_groq(ticker, open_price, close_prev, pivot, rsi, sma20, bb_upp
     return None
 
 def run_screener():
-    print("=== BOT PREMARKET GROQ STARTED ===")
+    print("=== BOT POSITION TRADING / INVESTASI STARTED ===")
     tickers_str = " ".join(STOCK_POOL)
-    raw_data = yf.download(tickers_str, period="3mo", interval="1d", group_by="ticker", threads=True)
+    
+    # Ambil data MINGGUAN (1wk) rentang 3 Tahun untuk menghitung MA200 secara akurat
+    raw_data = yf.download(tickers_str, period="3y", interval="1wk", group_by="ticker", threads=True)
 
-    pesan_rekap = "🤖 <b>PREMARKET ANALYSIS (GROQ AI)</b> 🤖\n" + "━" * 32 + "\n\n"
+    pesan_rekap = "🏛️ <b>WEEKLY POSITION & INVEST ANALYSIS</b> 🏛️\n" + "━" * 32 + "\n\n"
 
     for ticker in STOCK_POOL:
         kode_saham = ticker.replace(".JK", "")
         try:
             df = raw_data[ticker].dropna() if len(STOCK_POOL) > 1 else raw_data.dropna()
             
-            if len(df) < 10:
-                print(f"⚠️ Data {kode_saham} terlalu sedikit, skipped.")
+            if len(df) < 50:
+                print(f"⚠️ Data {kode_saham} kurang dari 50 minggu, skipped.")
                 continue
 
-            open_price = float(df["Open"].iloc[-1])
-            close_prev = float(df["Close"].iloc[-2])
-            high_prev = float(df["High"].iloc[-2])
-            low_prev = float(df["Low"].iloc[-2])
+            close_prev = float(df["Close"].iloc[-1])
+
+            # Indikator Jarak Jauh (Weekly)
+            df["SMA50"] = SMAIndicator(close=df["Close"], window=50).sma_indicator()
+            
+            # Jika data kurang untuk MA200, gunakan SMA100 sebagai cadangan
+            if len(df) >= 200:
+                df["SMA200"] = SMAIndicator(close=df["Close"], window=200).sma_indicator()
+                sma200 = float(df["SMA200"].iloc[-1]) if not pd.isna(df["SMA200"].iloc[-1]) else close_prev
+            else:
+                sma200 = float(df["SMA50"].iloc[-1])
 
             df["RSI"] = RSIIndicator(close=df["Close"], window=14).rsi()
-            df["SMA20"] = SMAIndicator(close=df["Close"], window=20).sma_indicator()
-            df["ATR"] = AverageTrueRange(high=df["High"], low=df["Low"], close=df["Close"], window=14).average_true_range()
-            
-            bb = BollingerBands(close=df["Close"], window=20, window_dev=2)
-            df["BB_Upper"] = bb.bollinger_hband()
-            df["BB_Lower"] = bb.bollinger_lband()
-            df["ADX"] = ADXIndicator(high=df["High"], low=df["Low"], close=df["Close"], window=14).adx()
+            macd_obj = MACD(close=df["Close"])
+            df["MACD_Hist"] = macd_obj.macd_diff()
 
-            rsi = float(df["RSI"].iloc[-2]) if not pd.isna(df["RSI"].iloc[-2]) else 50.0
-            sma20 = float(df["SMA20"].iloc[-2]) if not pd.isna(df["SMA20"].iloc[-2]) else close_prev
-            atr = float(df["ATR"].iloc[-2]) if not pd.isna(df["ATR"].iloc[-2]) else 0.0
-            bb_upper = float(df["BB_Upper"].iloc[-2]) if not pd.isna(df["BB_Upper"].iloc[-2]) else close_prev
-            bb_lower = float(df["BB_Lower"].iloc[-2]) if not pd.isna(df["BB_Lower"].iloc[-2]) else close_prev
-            adx = float(df["ADX"].iloc[-2]) if not pd.isna(df["ADX"].iloc[-2]) else 0.0
+            sma50 = float(df["SMA50"].iloc[-1]) if not pd.isna(df["SMA50"].iloc[-1]) else close_prev
+            rsi = float(df["RSI"].iloc[-1]) if not pd.isna(df["RSI"].iloc[-1]) else 50.0
+            macd_hist = float(df["MACD_Hist"].iloc[-1]) if not pd.isna(df["MACD_Hist"].iloc[-1]) else 0.0
 
-            pivot = (high_prev + low_prev + close_prev) / 3
-            is_bullish = close_prev >= (high_prev - (high_prev - low_prev) * 0.3)
+            # Penentuan Status Tren Utama
+            if close_prev > sma50 and sma50 > sma200:
+                trend_status = "BULLISH UPTREND (Strong)"
+            elif close_prev > sma50:
+                trend_status = "RECOVERY / EARLY UPTREND"
+            else:
+                trend_status = "DOWNTREND / DANGER ZONE"
 
-            print(f"🤖 Menganalisa {kode_saham}...")
+            print(f"🤖 Menganalisa {kode_saham} (Weekly)...")
 
             ai_result = minta_analisa_groq(
-                kode_saham, open_price, close_prev, pivot, rsi, sma20, bb_upper, bb_lower, adx, atr, is_bullish
+                kode_saham, close_prev, sma50, sma200, rsi, macd_hist, trend_status
             )
 
             time.sleep(1.5)
 
             if ai_result:
-                status = ai_result.get("rekomendasi", "SKIP")
+                status = ai_result.get("rekomendasi", "HOLD")
                 alasan = ai_result.get("alasan", "-")
-                tp = ai_result.get("target_tp", int(pivot * 1.03))
-                sl = ai_result.get("batas_sl", int(pivot * 0.97))
+                tp = ai_result.get("target_tp", int(close_prev * 1.15))
+                sl = ai_result.get("batas_sl", int(close_prev * 0.90))
             else:
-                status = "SKIP"
+                status = "HOLD"
                 alasan = "Gagal memproses respon AI"
-                tp = int(pivot * 1.03)
-                sl = int(pivot * 0.97)
+                tp = int(close_prev * 1.15)
+                sl = int(close_prev * 0.90)
 
-            icon = "🔥" if status == "HAKA" else ("👀" if status == "ANTRE" else "❌")
+            icon = "🟢" if status == "AKUMULASI" else ("🟡" if status == "HOLD" else "🔴")
 
             pesan_rekap += (
-                f"{icon} <b>[{kode_saham}]</b> -> Status: <b>{status}</b>\n"
-                f"├ 💵 Open: <b>Rp{int(open_price)}</b> | Prev Close: Rp{int(close_prev)}\n"
-                f"├ 📊 ADX: {adx:.1f} | BB Upper: Rp{int(bb_upper)}\n"
+                f"{icon} <b>[{kode_saham}]</b> -> Rating: <b>{status}</b>\n"
+                f"├ 💵 Close: <b>Rp{int(close_prev)}</b> | Tren: {trend_status}\n"
+                f"├ 📊 Weekly RSI: {rsi:.1f} | SMA50: Rp{int(sma50)}\n"
                 f"├ 💡 <i>{alasan}</i>\n"
-                f"├ 🎯 TP: Rp{tp}\n"
-                f"└ 🛡️ SL: Rp{sl}\n\n"
+                f"├ 🎯 Target TP (Long): Rp{tp}\n"
+                f"└ 🛡️ Batas Safe SL: Rp{sl}\n\n"
             )
 
         except Exception as e:
@@ -159,7 +166,7 @@ def run_screener():
             continue
 
     kirim_telegram(pesan_rekap)
-    print("✅ Seluruh analisa dikirim ke Telegram!")
+    print("✅ Seluruh analisa mingguan dikirim ke Telegram!")
 
 if __name__ == "__main__":
     run_screener()
